@@ -36,8 +36,8 @@ Report back clearly: your understanding of the goal, what files you plan to read
   powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" recover
   ```
   *(Note: Active unexpired leases will be protected; only pass `-Force` if explicitly confirmed by the user).*
-- **Post-Write Automated Snapshot**:
-  Whenever you create or modify a formal knowledge card or record, invoke the backup script during task completion to ensure rolling snapshot protection:
+- **Post-Write Snapshot (Agent-Invoked)**:
+  The snapshot runner is not a background daemon — invoke it explicitly when you finish any write task that created or modified a formal knowledge card or record:
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File "backup-obsidian-vault.ps1"
   ```
@@ -68,7 +68,7 @@ evidence_level: verified-single-project
 
 To promote a staged draft from `02_知识卡片/_drafts/` to formal storage:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <card-name>
+powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <card-name> -Agent <your-agent-identity>
 ```
 
 ---

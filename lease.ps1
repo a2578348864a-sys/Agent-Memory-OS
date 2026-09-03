@@ -280,7 +280,8 @@ try {
                         expiresAtUtc = $st.expiresAtUtc
                         message = "Lease is active and has not expired. Pass -Force to force release."
                     }
-                    return ($res | ConvertTo-Json)
+                    Write-Output ($res | ConvertTo-Json)
+                    exit 1
                 }
                 $fr = Invoke-DualAgentWriteLease -Operation Release -Agent $holder -LeaseId $lid -Scope $st.scope -ReasonCode "force_user_reset" -RuntimeRoot $RuntimeRoot -TestOnlyNowUtc $TestOnlyNowUtc -AllowSystemTempFixture:$isFixture
                 $res = [ordered]@{

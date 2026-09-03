@@ -1,9 +1,9 @@
 ---
 status: verified
 scope: cross-project
-verified_at: 2026-08-28
-source: "[[04_执行记录/2026-07-02-Codex接入Obsidian知识库]]"
-evidence_level: verified-single-project
+verified_at: 2026-01-01
+source: "[[07_问题与踩坑/2026-01-01-示例环境踩坑记录]]"
+evidence_level: needs-more-evidence
 ---
 
 # PowerShell 中文文件：UTF-8 读写
@@ -24,22 +24,16 @@ evidence_level: verified-single-project
 2. 写入：`Add-Content -LiteralPath $path -Encoding UTF8` 或 `Set-Content -Encoding UTF8`
 3. 避免在 `.cmd`/`.bat` 中处理中文（见 [[Windows-CMD脚本纯ASCII原则]]）。
 4. 中文路径用 `-LiteralPath` 而非 `-Path`（避免通配符展开）。
-5. **跨进程管道输出**（ps1 子进程 stdout 给 Node/其他程序按 UTF-8 读取）：PowerShell 5.1 默认按 OEM 代码页输出，接收方按 UTF-8 解码会得到 U+FFFD；必须在脚本最前（任何 JSON/文本输出之前）设置 `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)` 与 `$OutputEncoding = [Console]::OutputEncoding`（5.1 实测语法有效），Node 端 `execFile(...,{encoding:'utf8'})` 才能正确解码中文路径/内容。
+5. **跨进程管道输出**（ps1 子进程 stdout 给 Node/其他程序按 UTF-8 读取）：PowerShell 5.1 默认按 OEM 代码页输出，接收方按 UTF-8 解码会得到 U+FFFD；应在脚本最前（任何 JSON/文本输出之前）设置 `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)` 与 `$OutputEncoding = [Console]::OutputEncoding`，接收方按 UTF-8 解码才能正确得到中文路径/内容。
 
 ## 验证
 
-```powershell
-Get-Content -LiteralPath "中文文件.md" -Encoding UTF8 | Select-Object -First 3
-```
-确认中文正常显示。
+（示例验证，见 [[07_问题与踩坑/2026-01-01-示例环境踩坑记录]]）在模板自带的示例环境中复现并确认修复：
+1. `.cmd` 保持纯 ASCII；中文说明移入以 UTF-8 with BOM 保存的 `.ps1`/`.md`。
+2. 中文文件读取统一显式 `-Encoding UTF8`。
+3. 重新执行后中文不再乱码、参数解析不再错乱；最后运行 `05_代码与配置/知识库lint检查器.ps1` 全库校验，issues=0。
 
-管道场景验证（TDD 红→绿 + 反向）：
-```powershell
-# 在生成 JSON 的脚本最前执行
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [Console]::OutputEncoding
-```
-LOCAL_RUNTIME_SAFE_STOP：修复前真实管道测试 17 失败（中文『测试』变成 `D:\����\���̹���\...` U+FFFD，约 12 处 + 残留 U+0339），修复后 28/28 通过；反向验证仅移除两行 OutputEncoding → 测试 17 红（27/1）→ 字节级恢复锁 SHA256 后全套复绿 28/28。
+> 本卡为模板内置**脱敏示例卡（demo evidence）**，用于演示 7 段式卡片合同；验证过程来自仓库自带的示例踩坑记录，不代表任何特定生产项目的真实验收证据。请在真实项目中复验后再升级 evidence_level。
 
 ## 不适用
 
@@ -55,11 +49,6 @@ LOCAL_RUNTIME_SAFE_STOP：修复前真实管道测试 17 失败（中文『测�
 
 ## 来源
 
-- [[04_执行记录/2026-07-02-Codex接入Obsidian知识库]]
-- `99_归档/2026-07-02-确认Obsidian知识库执行规则.md`（已归档，中文乱码问题首次出现于此）
-- sourceId: demo-fullstack-service（管道输出编码）
-- relativePath: 电商工具/docs/v4.1/LOCAL_RUNTIME_SAFE_STOP_PROGRESS.md
-- sourceSha256: 0ED5FCC792A24C8DAA9BF401D66775E4DF183F2515DDEFDFBE5F2BBA1B161780
-- verifiedAt: 2026-08-28
-- evidenceLevel: verified-single-project
-- verificationResult: 已核对 P1 根因（powershell.exe 5.1 管道默认 OEM 代码页 → Node execFile utf8 读中文路径得 U+FFFD，真实 3005 next start CommandLine 恒 child_next_entry_mismatch）、修复（OutputEncoding 前置两行）、红→绿（27/1 → 28/28）与反向验证（移除两行 → 红 → 字节级恢复复绿）
+- [[07_问题与踩坑/2026-01-01-示例环境踩坑记录]]（本卡对应的脱敏示例记录）
+- 关联示例卡：[[Windows-CMD脚本纯ASCII原则]]
+- 本卡为模板内置脱敏示例（demo evidence）。若在你的真实项目中再次验证，请按规范将 `evidence_level` 升级为 `verified-single-project` 并补充对应项目记录。

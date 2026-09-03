@@ -54,28 +54,100 @@ function Get-DraftCardMarkdownFiles {
     @(Get-ChildItem -LiteralPath $script:DraftDir -Filter "*.md" -File | Sort-Object Name)
 }
 
-function Get-AllWikiLinkTargets {
-    param([Parameter(Mandatory = $true)][string]$Directory)
+function Get-VaultNoteIndex {
+    param([Parameter(Mandatory = $true)][string]$VaultRoot)
+    $relWithExt = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    $relNoExt = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    $baseNames = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    $baseDirMap = @{}
+    Get-ChildItem -LiteralPath $VaultRoot -Filter "*.md" -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        $rel = $_.FullName.Substring($VaultRoot.Length).TrimStart('\', '/').Replace('\', '/')
+        [void]$relWithExt.Add($rel)
+        if ($rel -match '(?i)\.md$') {
+            $rel = $rel.Substring(0, $rel.Length - 3)
+        }
+        [void]$relNoExt.Add($rel)
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+        [void]$baseNames.Add($base)
+        $dirKey = Split-Path -Parent $rel
+        if (-not $baseDirMap.ContainsKey($base)) { $baseDirMap[$base] = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase) }
+        [void]$baseDirMap[$base].Add($dirKey)
+    }
+    $ambigBase = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($k in $baseDirMap.Keys) {
+        if ($baseDirMap[$k].Count -gt 1) { [void]$ambigBase.Add($k) }
+    }
+    return [pscustomobject]@{
+        relWithExt = $relWithExt
+        relNoExt = $relNoExt
+        baseNames = $baseNames
+        ambigBase = $ambigBase
+    }
+}
+
+function Get-NormalizedWikiTarget {
+    param([Parameter(Mandatory = $true)][string]$LinkBody)
+    $t = $LinkBody.Trim()
+    if ([string]::IsNullOrEmpty($t)) { return "" }
+    $cut = $t.Length
+    foreach ($sep in @('|', '#')) {
+        $i = $t.IndexOf($sep)
+        if ($i -ge 0 -and $i -lt $cut) { $cut = $i }
+    }
+    if ($cut -le 0) { return "" }
+    return $t.Substring(0, $cut).Trim()
+}
+
+function Get-WikiLinkTargetsInText {
+    param([Parameter(Mandatory = $true)][string]$Text)
     $targets = New-Object System.Collections.Generic.HashSet[string]
-    Get-ChildItem -LiteralPath $Directory -Filter "*.md" -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-        $content = Get-FileContentUtf8 -Path $_.FullName
-        foreach ($m in [regex]::Matches($content, "\[\[(?<t>[^\]\|#]+)")) {
-            [void]$targets.Add($m.Groups["t"].Value.Trim())
-        }
-        foreach ($m in [regex]::Matches($content, "\[\[[^\]]*\|(?<t>[^\]\]]+)\]\]")) {
-            [void]$targets.Add($m.Groups["t"].Value.Trim())
-        }
+    $sb = New-Object System.Text.StringBuilder
+    $inFence = $false
+    foreach ($line in @($Text -split "`r?`n")) {
+        if ($line -match '^\s*```') { $inFence = -not $inFence; continue }
+        if (-not $inFence) { [void]$sb.AppendLine($line) }
+    }
+    $plain = $sb.ToString()
+    # 行内代码中的 [[...]] 与代码块一样不是 Obsidian 可解析链接
+    $plain = [regex]::Replace($plain, '`[^`]*`', '')
+    foreach ($m in [regex]::Matches($plain, '\[\[(?<body>[^\[\]]+)\]\]')) {
+        $target = Get-NormalizedWikiTarget -LinkBody $m.Groups["body"].Value
+        if (-not [string]::IsNullOrWhiteSpace($target)) { [void]$targets.Add($target) }
     }
     return $targets
 }
 
-function Get-ExistingNoteBaseNames {
-    param([Parameter(Mandatory = $true)][string]$Directory)
-    $names = New-Object System.Collections.Generic.HashSet[string]
-    Get-ChildItem -LiteralPath $Directory -Filter "*.md" -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-        [void]$names.Add($_.BaseName)
+function Test-WikiTargetResolves {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][pscustomobject]$NoteIndex
+    )
+    # 返回值：resolved_rel（精确相对路径命中）/ resolved_base（按 basename 唯一命中）
+    #        / ambiguous_base（同名文件存在于多个目录，必须改用相对路径）
+    #        / missing（不存在）
+    if ([string]::IsNullOrWhiteSpace($Target)) { return "resolved_rel" }
+    $t = $Target.Trim().Replace('\', '/')
+    if ([string]::IsNullOrWhiteSpace($t)) { return "resolved_rel" }
+    # 1) 精确相对路径匹配优先（兼容带 .md 与不带 .md 两种写法）
+    $candidates = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    [void]$candidates.Add($t)
+    if ($t -match '(?i)\.md$') {
+        [void]$candidates.Add($t.Substring(0, $t.Length - 3))
+    } else {
+        [void]$candidates.Add($t + ".md")
     }
-    return $names
+    foreach ($c in $candidates) {
+        if ($NoteIndex.relWithExt.Contains($c) -or $NoteIndex.relNoExt.Contains($c)) { return "resolved_rel" }
+    }
+    # 2) 无路径的裸名：按 basename 唯一性匹配；同名多目录 = 歧义，明确报告
+    $leaf = $t
+    $lastSlash = $t.LastIndexOf('/')
+    if ($lastSlash -ge 0) { $leaf = $t.Substring($lastSlash + 1) }
+    if ($leaf -match '(?i)\.md$') { $leaf = $leaf.Substring(0, $leaf.Length - 3) }
+    if ([string]::IsNullOrWhiteSpace($leaf)) { return "missing" }
+    if ($NoteIndex.ambigBase.Contains($leaf)) { return "ambiguous_base" }
+    if ($NoteIndex.baseNames.Contains($leaf)) { return "resolved_base" }
+    return "missing"
 }
 
 function ConvertTo-JsonSafe {
@@ -135,6 +207,29 @@ function Invoke-KbLint {
         }
         if ($fm.ContainsKey("status") -and [string]$fm["status"] -cne "verified") {
             [void]$findings.Add([ordered]@{ type = "card_status_invalid"; file = $f.Name; detail = "正式卡 status 必须为 verified，实际: $($fm["status"])" })
+        }
+
+        # 1b. 正式卡日期/证据合同：verified_at 必须为真实 YYYY-MM-DD（禁止 1970-01-01 哨兵）；
+        #     evidence_level 必须属于允许集合（与草稿共用 AllowedEvidenceLevels）。
+        $vaText = ""
+        if ($fm.ContainsKey("verified_at")) { $vaText = ([string]$fm["verified_at"]).Trim().Trim('"') }
+        if (-not [string]::IsNullOrWhiteSpace($vaText)) {
+            if ($vaText -ceq "1970-01-01") {
+                [void]$findings.Add([ordered]@{ type = "card_verified_at_sentinel"; file = $f.Name; detail = "正式卡 verified_at 为模板哨兵 1970-01-01，禁止（真实卡必须填实际验证日期）" })
+            } elseif ($vaText -notmatch '^\d{4}-\d{2}-\d{2}$') {
+                [void]$findings.Add([ordered]@{ type = "card_verified_at_invalid"; file = $f.Name; detail = "正式卡 verified_at 必须为 YYYY-MM-DD，实际: $vaText" })
+            } else {
+                $vaParsedOk = $true
+                try { [void][datetime]::ParseExact($vaText, "yyyy-MM-dd", [System.Globalization.CultureInfo]::InvariantCulture) }
+                catch { $vaParsedOk = $false }
+                if (-not $vaParsedOk) {
+                    [void]$findings.Add([ordered]@{ type = "card_verified_at_invalid"; file = $f.Name; detail = "正式卡 verified_at 不是合法日期，实际: $vaText" })
+                }
+            }
+        }
+        if ($fm.ContainsKey("evidence_level") -and -not [string]::IsNullOrWhiteSpace([string]$fm["evidence_level"]) -and
+            $script:AllowedEvidenceLevels -cnotcontains [string]$fm["evidence_level"]) {
+            [void]$findings.Add([ordered]@{ type = "card_evidence_level_invalid"; file = $f.Name; detail = "正式卡 evidence_level 不在允许范围，实际: $($fm["evidence_level"])" })
         }
 
         # 2. 必填章节必须齐全且顺序一致
@@ -241,12 +336,22 @@ function Invoke-KbLint {
         }
     }
 
-    # 5. 全库双链：指向 .md 的链接必须存在于库内（跨目录引用检查）
-    $existingNotes = Get-ExistingNoteBaseNames -Directory $VaultRoot
-    $wikiTargets = Get-AllWikiLinkTargets -Directory $VaultRoot
-    foreach ($target in $wikiTargets) {
-        if ($target -match "\.md$" -and -not $existingNotes.Contains($target)) {
-            [void]$findings.Add([ordered]@{ type = "wiki_link_missing"; file = "(all)"; detail = "双链指向不存在的文件: $target" })
+    # 5. 全库双链：Obsidian WikiLink 目标必须真实存在于库内。
+    #    支持 [[文件名]]、[[文件名|别名]]、[[文件名#标题]]、[[目录/文件名]]、[[目录/文件名|别名]]；
+    #    不要求带 .md 后缀，按 vault 相对路径或 basename 规范化解析；代码块/行内代码不参与解析。
+    $noteIndex = Get-VaultNoteIndex -VaultRoot $VaultRoot
+    $checkedTargets = New-Object System.Collections.Generic.HashSet[string]
+    foreach ($mdFile in @(Get-ChildItem -LiteralPath $VaultRoot -Filter "*.md" -File -Recurse -ErrorAction SilentlyContinue)) {
+        $fileContent = Get-FileContentUtf8 -Path $mdFile.FullName
+        foreach ($target in @(Get-WikiLinkTargetsInText -Text $fileContent)) {
+            if ($checkedTargets.Contains($target)) { continue }
+            [void]$checkedTargets.Add($target)
+            $resolve = Test-WikiTargetResolves -Target $target -NoteIndex $noteIndex
+            if ($resolve -eq "ambiguous_base") {
+                [void]$findings.Add([ordered]@{ type = "wiki_link_ambiguous"; file = "(all)"; detail = "双链 basename 在多个目录重复，请改用带目录的相对路径: $target" })
+            } elseif ($resolve -eq "missing") {
+                [void]$findings.Add([ordered]@{ type = "wiki_link_missing"; file = "(all)"; detail = "双链指向不存在的笔记: $target" })
+            }
         }
     }
 

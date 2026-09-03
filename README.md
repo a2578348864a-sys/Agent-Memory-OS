@@ -1,8 +1,8 @@
 ﻿# Agent-Memory-OS 🧠⚡
 
 <p align="center">
-  <b>A Local-First, Concurrency-Safe External Memory Operating System for Multi-Agent AI Coding</b><br>
-  <i>Stop AI amnesia and file race conditions across Claude Code, Codex, Gemini, Cursor, and Windsurf.</i>
+  <b>A Local-First, Concurrency-Safe External Memory Starter for Multi-Agent AI Coding</b><br>
+  <i>Reduce AI session amnesia and prevent file race conditions across Claude Code, Codex, Gemini, Cursor, and Windsurf.</i>
 </p>
 
 <p align="center">
@@ -32,13 +32,16 @@ Every developer building software with modern AI coding assistants (Claude Code,
 2. **Multi-Agent Collision & Race Conditions**: When running multiple autonomous assistants concurrently, agents blindly overwrite each other's files, causing merge disasters and corrupted worktrees.
 3. **Over-Engineered, Fragile Memory Stacks**: Most existing "agent memory" frameworks demand heavy Docker containers, vector databases, Redis servers, or cloud APIs that developers cannot easily inspect, edit, or maintain.
 
-**Agent-Memory-OS solves this with an industrial-grade, local-first memory kernel:**
+**Agent-Memory-OS is a local-first, Windows-first starter system that addresses these with:**
 
-- 📂 **Local-First & Human-Curated**: Built on standard Obsidian Markdown with bidirectional wiki-links. 100% of your engineering knowledge stays on your disk.
-- 🔒 **Local Multi-Agent Write Lease**: A lightweight cooperative lease mutex protocol (`lease.ps1`) enforcing strict write boundaries, preventing race conditions, and featuring self-healing auto-recovery.
-- 🛡️ **Zero-Manual Snapshot Defense**: Fully automated background rolling backups with SHA256 integrity manifests—never lose a knowledge card to accidental deletion.
-- 🎯 **Domain-Targeted Navigation**: A 5-domain scene index preventing token inflation and context dilution when knowledge scales past hundreds of cards.
-- 📐 **Rigorous 2-Phase Quality Gates**: Atomic 7-section card contracts + deterministic lint validators + atomic promoter (`promote-draft.ps1`) preventing hallucinated prompt garbage from poisoning long-term memory.
+- 📂 **Local-First & Human-Curated**: Built on standard Obsidian Markdown with bidirectional wiki-links. All of your engineering knowledge stays on your disk.
+- 🔒 **Local Multi-Agent Write Lease**: A lightweight cooperative lease mutex protocol (`lease.ps1`) that enforces strict write boundaries, reduces write race conditions, and supports self-healing recovery of stale leases (`lease.ps1 recover`).
+- 🛡️ **Agent-Governed Snapshot Workflow**: one command (`backup-obsidian-vault.ps1`) takes a rolling snapshot ZIP with a SHA256 integrity manifest; agents invoke it at task end to protect knowledge cards.
+- 🎯 **Domain-Targeted Navigation**: a scenario index (`08_复盘与沉淀/自动复用索引.md`) that routes agents to relevant cards before work, reducing context dilution.
+- 📐 **Deterministic Quality Gates**: atomic 7-section card contracts + deterministic lint validators + atomic draft promotion (`promote-draft.ps1`), so unreviewed drafts cannot quietly enter long-term memory.
+
+> [!IMPORTANT]
+> **Scope boundary**: The write lease governs cooperative mutations inside the Agent-Memory-OS knowledge vault (this repository). It does not lock or intercept writes to your application source repository.
 
 > [!NOTE]
 > **Prerequisites**: Windows 10/11 with PowerShell 5.1+ (Windows-first design).
@@ -64,7 +67,7 @@ graph TD
         Lease["Write Lease Mutex<br>(lease.ps1 / DualAgentWriteLeaseCore.ps1)"]
         Reset["Self-Healing Engine<br>(lease.ps1 recover)"]
         Promote["Draft Promoter<br>(promote-draft.ps1)"]
-        Backup["Automated Snapshot Engine<br>(backup-obsidian-vault.ps1)"]
+        Backup["Snapshot Runner<br>(backup-obsidian-vault.ps1)"]
         Lint["Contract & Lint Validator<br>(知识库lint检查器.ps1)"]
     end
 
@@ -73,7 +76,7 @@ graph TD
         Cards["02_Knowledge_Cards / Atomic Lessons"]
         Exec["04_Execution_Logs / Fact Ledgers"]
         Pitfalls["07_Pitfalls / Debugging Case Studies"]
-        Index["08_Review_Index / 5-Domain Scene Navigation"]
+        Index["08_Review_Index / Scenario Navigation"]
     end
 
     Claude -->|Acquire Lease| Lease
@@ -84,7 +87,7 @@ graph TD
     Lease -->|Audit & Grant| Cards
     Reset -.->|Auto-Recover Stale Locks| Lease
     Promote -->|Atomic Promotion| Cards
-    Backup -.->|Post-Write Hook| Cards
+    Backup -.->|Agent-Triggered Snapshot| Cards
     Lint -.->|Quality Gate| Cards
 ```
 
@@ -98,8 +101,8 @@ graph TD
 | **Multi-Agent Safety** | ❌ Complete race conditions | ❌ Retrieval only, no write lock | ❌ No concurrency protection | 🏆 **Local Multi-Agent Write Lease + Self-Healing** |
 | **Setup Overhead** | ✅ Zero | ❌ Requires Docker, Redis, APIs | ✅ Copy & Paste | 🏆 **Zero external services, clone & run** |
 | **Knowledge Quality** | ❌ Hallucination prone | ⚠️ Vector similarity guesses | ❌ Unchecked text blobs | 🏆 **Strict 7-section cards + Lint tests** |
-| **Disaster Recovery** | ❌ Irreversible data loss | ⚠️ Requires database backups | ❌ No backup mechanism | 🏆 **Dual-layer rolling snapshot archives** |
-| **Token Efficiency** | ❌ Dumps entire prompts | ⚠️ Vector search noise | ❌ High context dilution | 🏆 **5-domain targeted scene routing** |
+| **Disaster Recovery** | ❌ Irreversible data loss | ⚠️ Requires database backups | ❌ No backup mechanism | 🏆 **Rolling snapshot ZIP + SHA256 manifest** |
+| **Token Efficiency** | ❌ Dumps entire prompts | ⚠️ Vector search noise | ❌ High context dilution | 🏆 **Domain-targeted scene routing** |
 
 ---
 
@@ -126,16 +129,20 @@ Mount this vault directory into your development workspace:
 ### Step 3: Concurrency-Safe Operations
 All AI agents interact through the safe CLI:
 ```powershell
-# 1. Acquire write lease before writing
-powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire <your-agent>
+# 0. Stage a draft card first (demo: copy the draft template into _drafts/)
+Copy-Item "09_模板\知识卡片草稿模板.md" "02_知识卡片\_drafts\demo-card.md"
 
-# 2. Promote reviewed draft cards to formal storage
-powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <card-name>
+# 1. Acquire a write lease - read the returned leaseId
+$lease = powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire <your-agent> | ConvertFrom-Json
+$leaseId = $lease.leaseId
 
-# 3. Release write lease when task is finished
-powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" release <your-agent>
+# 2. Promote the reviewed draft, passing your agent identity AND the active leaseId
+powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName demo-card -Agent <your-agent> -LeaseId $leaseId
 
-# 4. Trigger rolling snapshot backup
+# 3. Release the write lease when the task is finished
+powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" release <your-agent> -LeaseId $leaseId
+
+# 4. Take a rolling snapshot backup
 powershell -NoProfile -ExecutionPolicy Bypass -File "backup-obsidian-vault.ps1"
 ```
 
@@ -150,10 +157,10 @@ Agent-Memory-OS/
 ├── setup.ps1                     # 1-click initial setup & health check
 ├── lease.ps1                     # Local Multi-Agent Write Lease CLI
 ├── promote-draft.ps1             # Atomic 2-phase draft card promoter
-├── backup-obsidian-vault.ps1     # Automated rolling snapshot backup runner
+├── backup-obsidian-vault.ps1     # Rolling snapshot backup runner (agent-invoked)
 ├── reset-obsidian-lease.ps1      # Safe lease recovery & self-healing runner
 ├── AGENTS.md                     # Universal multi-agent rule source
-├── CLAUDE.md / CODEX.md / ...    # Per-agent specialized entrypoints
+├── CLAUDE.md / CODEX.md / GEMINI.md  # Per-agent specialized entrypoints
 ├── 一键备份知识库.cmd             # Windows double-click backup shortcut
 ├── 一键重置写租约.cmd             # Windows double-click recovery shortcut
 ├── 01_收件箱/ (01_Inbox)         # Staging area for raw ideas and unprocessed notes
@@ -162,17 +169,18 @@ Agent-Memory-OS/
 ├── 03_项目索引/ (03_Index)       # Cross-project relationship catalog
 ├── 04_执行记录/ (04_Logs)        # Audit ledger of agent execution runs
 ├── 05_代码与配置/ (05_Core)      # Concurrency kernel: lease, backup, self-healing, lint, promote
-├── 06_测试与验证/ (06_Tests)     # 36+ regression tests & JSON Schema contracts
-├── 07_问题与踩坑/ (07_Pitfalls)  # Real-world debugging case studies & root-cause proofs
-├── 08_复盘与沉淀/ (08_Memory)    # 5-domain scene routing index & lifecycle reports
-└── 09_模板/ (09_Templates)       # Standardized markdown templates
+├── 06_测试与验证/ (06_Tests)     # 36/62/10/68-assertion suites (Lease/Lint/Reset/E2E) & JSON Schema contracts
+├── 07_问题与踩坑/ (07_Pitfalls)  # Debugging case studies & root-cause records
+├── 08_复盘与沉淀/ (08_Memory)    # Domain-routed scenario index & reusable agent rules
+├── 09_模板/ (09_Templates)       # Standardized markdown templates
+└── raw/                          # External raw materials (draft source staging)
 ```
 
 ---
 
 ## 🛡️ Built-In Verification & Tests
 
-Agent-Memory-OS treats AI memory as enterprise software with deterministic test suites:
+Agent-Memory-OS treats memory governance like tested software, with deterministic suites:
 
 ```powershell
 # 1. Validate all knowledge cards syntax, structure, and bidirectional wiki-links
@@ -181,8 +189,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "05_代码与配置/知识�
 # 2. Run the 36-assertion Local Write Lease regression suite
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/DualAgentWriteLeaseCore.Tests.ps1"
 
-# 3. Run the 38-assertion Lint validator test suite
+# 3. Run the 62-assertion Lint validator suite (cards, drafts, wiki-links, formal-card contract)
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/知识库lint检查器.Tests.ps1"
+
+# 4. (Optional) Run the 10-assertion reset-wrapper suite (exit-code semantics)
+powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/ResetWrapper.Tests.ps1"
+
+# 5. (Optional) Run the 68-assertion Fresh-Clone end-to-end journey
+powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/FreshCloneE2E.Tests.ps1"
 ```
 
 ---

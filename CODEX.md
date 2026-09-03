@@ -13,7 +13,7 @@ You are the OpenAI Codex assistant connected to Agent-Memory-OS.
   `powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire codex`
 - Always release your lease in your final step:
   `powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" release codex`
-- Promote drafts via:
-  `powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <name>`
-- Automatically trigger snapshot backup upon completing any write task:
+- Promote drafts via (pass your agent identity; the active lease is loaded automatically):
+  `powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <name> -Agent codex`
+- Trigger the snapshot backup when wrapping up any write task (agent-invoked):
   `powershell -NoProfile -ExecutionPolicy Bypass -File "backup-obsidian-vault.ps1"`

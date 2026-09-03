@@ -325,6 +325,137 @@ Run-Lint $v | Out-Null
 $after = @(Get-ChildItem -LiteralPath (Join-Path $v "02_知识卡片") -Recurse -File | Select-Object FullName, Length, LastWriteTimeUtc | ConvertTo-Json -Depth 5) -join "`n"
 Assert-True ($before -ceq $after) "T20 有草稿时 lint 运行前后文件状态应完全一致"
 
+function New-PlainNote {
+    param([string]$Vault, [string]$RelativePath, [string]$Content)
+    $full = Join-Path $Vault $RelativePath
+    $dir = Split-Path -Parent $full
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText($full, $Content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function New-WikiVault {
+    param([string]$Name, [string[]]$Links)
+    $v = New-TestVault $Name
+    New-Card -Vault $v -Name "正常卡片" -Frontmatter $validFrontmatter -Body $validBody
+    New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[正常卡片]]"
+    $bodyText = "# 示例记录`n`n"
+    foreach ($l in @($Links)) { $bodyText += $l + "`n" }
+    New-PlainNote -Vault $v -RelativePath "04_执行记录\示例记录.md" -Content $bodyText
+    return $v
+}
+
+function Assert-NoWikiLinkMissing {
+    param($LintResult, [string]$Message)
+    $missing = @($LintResult.findings | Where-Object { $_.type -eq "wiki_link_missing" })
+    Assert-True ($missing.Count -eq 0) $Message
+}
+
+# --- 测试 21：合法无 .md 后缀双链 [[文件名]] 应 PASS ---
+$v = New-WikiVault "wiki-plain" @("[[外部笔记]]")
+New-PlainNote -Vault $v -RelativePath "外部笔记.md" -Content "# 外部笔记"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T21 指向存在的无 .md 后缀链接应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T21 不应报告 wiki_link_missing"
+
+# --- 测试 22：带别名双链 [[文件名|别名]] 应 PASS ---
+$v = New-WikiVault "wiki-alias" @("[[外部笔记|我的别名]]")
+New-PlainNote -Vault $v -RelativePath "外部笔记.md" -Content "# 外部笔记"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T22 带别名链接应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T22 不应报告 wiki_link_missing"
+
+# --- 测试 23：带标题锚点双链 [[文件名#标题]] 应 PASS ---
+$v = New-WikiVault "wiki-heading" @("[[外部笔记#我的标题]]")
+New-PlainNote -Vault $v -RelativePath "外部笔记.md" -Content "# 外部笔记"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T23 带标题锚点链接应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T23 不应报告 wiki_link_missing"
+
+# --- 测试 24：跨目录双链 [[目录/文件名]] 应 PASS ---
+$v = New-WikiVault "wiki-crossdir" @("[[08_复盘与沉淀/复盘记录]]")
+New-PlainNote -Vault $v -RelativePath "08_复盘与沉淀\复盘记录.md" -Content "# 复盘记录"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T24 跨目录链接应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T24 不应报告 wiki_link_missing"
+
+# --- 测试 25：指向不存在笔记（无 .md 后缀）应 RED ---
+$v = New-WikiVault "wiki-broken-plain" @("[[不存在的笔记]]")
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T25 指向不存在笔记的链接应 ok=false"
+$missing = @($r.findings | Where-Object { $_.type -eq "wiki_link_missing" })
+Assert-True ($missing.Count -ge 1) "T25 应报告 wiki_link_missing"
+
+# --- 测试 26：带 .md 后缀且指向存在文件应 PASS（修复 .md target vs BaseName 语义错位）---
+$v = New-TestVault "wiki-md-exists"
+New-Card -Vault $v -Name "正常卡片" -Frontmatter $validFrontmatter -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[正常卡片]]"
+New-PlainNote -Vault $v -RelativePath "外部笔记.md" -Content "# 外部笔记"
+New-PlainNote -Vault $v -RelativePath "04_执行记录\记录.md" -Content "# 记录`n`n[[外部笔记.md]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T26 指向存在的带 .md 后缀链接应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T26 不应报告 wiki_link_missing"
+
+# --- 测试 27：alias 不得被误判为目标（别名即使带 .md 也不参与存在性判断）---
+$v = New-TestVault "wiki-alias-not-target"
+New-Card -Vault $v -Name "正常卡片" -Frontmatter $validFrontmatter -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[正常卡片]]"
+New-PlainNote -Vault $v -RelativePath "外部笔记.md" -Content "# 外部笔记"
+New-PlainNote -Vault $v -RelativePath "04_执行记录\记录.md" -Content "# 记录`n`n[[外部笔记|不存在别名.md]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T27 alias 文本不得被当作链接目标应 ok=true"
+Assert-NoWikiLinkMissing -LintResult $r -Message "T27 不应报告 wiki_link_missing"
+
+# --- 测试 28：同名 basename 存在于多个目录（裸名歧义）应明确报告 ---
+$v = New-TestVault "wiki-ambiguous"
+New-Card -Vault $v -Name "正常卡片" -Frontmatter $validFrontmatter -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[正常卡片]]"
+New-PlainNote -Vault $v -RelativePath "04_执行记录\甲\重名笔记.md" -Content "# 甲"
+New-PlainNote -Vault $v -RelativePath "07_问题与踩坑\乙\重名笔记.md" -Content "# 乙"
+New-PlainNote -Vault $v -RelativePath "04_执行记录\记录.md" -Content "# 记录`n`n[[重名笔记]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T28 同名文件裸名歧义应 ok=false（需改用相对路径）"
+$amb = @($r.findings | Where-Object { $_.type -eq "wiki_link_ambiguous" })
+Assert-True ($amb.Count -ge 1) "T28 应报告 wiki_link_ambiguous"
+
+# --- 测试 29：正式卡 verified_at 为 1970-01-01 哨兵应 RED ---
+$fm29 = $validFrontmatter -replace 'verified_at: 2026-07-16', 'verified_at: 1970-01-01'
+$v = New-TestVault "card-va-sentinel"
+New-Card -Vault $v -Name "哨兵卡" -Frontmatter $fm29 -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[哨兵卡]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T29 verified_at 哨兵 1970-01-01 应 RED"
+Assert-True (@($r.findings | Where-Object { $_.type -eq "card_verified_at_sentinel" }).Count -ge 1) "T29 应报告 card_verified_at_sentinel"
+
+# --- 测试 30：正式卡 verified_at 非法格式/非法日期应 RED ---
+$fm30 = $validFrontmatter -replace 'verified_at: 2026-07-16', 'verified_at: 2026-07-16T08:00:00'
+$v = New-TestVault "card-va-invalid"
+New-Card -Vault $v -Name "坏日期卡" -Frontmatter $fm30 -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[坏日期卡]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T30 verified_at 非法格式应 RED"
+Assert-True (@($r.findings | Where-Object { $_.type -eq "card_verified_at_invalid" }).Count -ge 1) "T30 应报告 card_verified_at_invalid"
+
+# --- 测试 31：正式卡 evidence_level 不在允许集合应 RED ---
+$fm31 = $validFrontmatter -replace 'evidence_level: verified-single-project-strong', 'evidence_level: verified-super-duper'
+$v = New-TestVault "card-evidence-invalid"
+New-Card -Vault $v -Name "坏证据卡" -Frontmatter $fm31 -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[坏证据卡]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T31 evidence_level 非法应 RED"
+Assert-True (@($r.findings | Where-Object { $_.type -eq "card_evidence_level_invalid" }).Count -ge 1) "T31 应报告 card_evidence_level_invalid"
+
+# --- 测试 32：正式卡合法日期 + 合法 evidence_level 应 PASS ---
+$fm32 = $validFrontmatter -replace 'verified_at: 2026-07-16', 'verified_at: 2026-05-05' -replace 'evidence_level: verified-single-project-strong', 'evidence_level: verified-single-project'
+$v = New-TestVault "card-contract-ok"
+New-Card -Vault $v -Name "合规卡" -Frontmatter $fm32 -Body $validBody
+New-Card -Vault $v -Name "00_知识卡片说明" -Body "# 说明`n`n[[合规卡]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T32 合法日期与证据等级应 ok=true"
+$bad = @($r.findings | Where-Object { $_.type -in @("card_verified_at_sentinel", "card_verified_at_invalid", "card_evidence_level_invalid") })
+Assert-True ($bad.Count -eq 0) "T32 不应报告日期/证据合同问题"
+
 # 清理
 Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 

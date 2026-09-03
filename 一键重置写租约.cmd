@@ -8,8 +8,10 @@ if errorlevel 1 (
   echo.
   echo [ERROR] Lease reset failed.
   if "%~1"=="" pause
+  exit /b 1
 ) else (
   echo.
-  echo [SUCCESS] Lease is now clean and idle. All agents unlocked.
+  echo [SUCCESS] Lease recovery completed successfully.
   if "%~1"=="" pause
+  exit /b 0
 )
