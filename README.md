@@ -1,4 +1,4 @@
-﻿# Agent-Memory-OS 🧠⚡
+# Agent-Memory-OS 🧠⚡
 
 <p align="center">
   <b>A Local-First, Concurrency-Safe External Memory Operating System for Multi-Agent AI Coding</b><br>
@@ -58,9 +58,9 @@ graph TD
 
     subgraph "Governance & Concurrency Kernel"
         Lease["Write Lease Mutex<br>(DualAgentWriteLeaseCore.ps1)"]
-        Reset["Self-Healing Engine<br>(重置写租约.ps1)"]
-        Backup["Automated Snapshot Engine<br>(知识库本地快照备份.ps1)"]
-        Lint["Contract & Lint Validator<br>(知识库lint检查器.ps1)"]
+        Reset["Self-Healing Engine<br>(reset-obsidian-lease.ps1)"]
+        Backup["Automated Snapshot Engine<br>(backup-obsidian-vault.ps1)"]
+        Lint["Contract & Lint Validator<br>(lint-checker.ps1)"]
     end
 
     subgraph "Obsidian Knowledge Vault (Local-First)"
@@ -76,9 +76,9 @@ graph TD
     Gemini -->|Acquire Lease| Lease
     Cursor -->|Acquire Lease| Lease
 
-    Lease -->|Audit & Authorize| Obsidian Knowledge Vault
+    Lease -->|Audit & Authorize| Cards
     Reset -.->|Auto-Recover Stale Locks| Lease
-    Backup -.->|Post-Write Hook & Cron| Obsidian Knowledge Vault
+    Backup -.->|Post-Write Hook| Cards
     Lint -.->|Quality Gate Enforcement| Cards
 ```
 

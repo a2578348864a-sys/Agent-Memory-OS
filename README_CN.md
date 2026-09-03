@@ -1,4 +1,4 @@
-﻿# Agent-Memory-OS 🧠⚡
+# Agent-Memory-OS 🧠⚡
 
 <p align="center">
   <b>A Local-First, Zero-Setup External Memory & Governance OS for Multi-Agent AI Coding</b><br>
@@ -73,9 +73,9 @@ graph TD
     Gemini -->|Acquire Lease| Lease
     Cursor -->|Acquire Lease| Lease
 
-    Lease -->|Audit & Grant| Obsidian Knowledge Vault
+    Lease -->|Audit & Grant| Cards
     Reset -.->|Auto Self-Healing| Lease
-    Backup -.->|Post-Write Hook & Cron| Obsidian Knowledge Vault
+    Backup -.->|Post-Write Hook| Cards
     Lint -.->|Quality Gate| Cards
 ```
 
