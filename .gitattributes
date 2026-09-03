@@ -1,0 +1,23 @@
+# Line-ending contract for Agent-Memory-OS.
+# Scope: line endings ONLY. This file does NOT handle character-set or BOM
+# decoding (e.g. Windows PowerShell 5.1 reading a UTF-8 .ps1 without BOM),
+# and it does not convert encodings (no working-tree-encoding).
+
+* text=auto
+
+# Default LF for cross-platform text documents and scripts.
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.ps1  text eol=lf
+
+# Windows cmd.exe native entrypoints keep CRLF.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# Tracked binary assets.
+*.png  binary
+
+# This file itself.
+.gitattributes text eol=lf
