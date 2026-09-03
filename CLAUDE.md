@@ -9,5 +9,11 @@ You are the Claude Code assistant connected to Agent-Memory-OS.
   2. `AGENTS.md` (Universal rules)
   3. `00_知识库总览.md`
   4. `08_复盘与沉淀/自动复用索引.md`
-- Always acquire a lease via `DualAgentWriteLeaseCore.ps1` before modifying files, and release in `finally`.
-- Automatically trigger `05_代码与配置/知识库本地快照备份.ps1` upon completing any write task.
+- Acquire a write lease before modifying vault files:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire claude`
+- Always release your lease in your final step:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" release claude`
+- Promote drafts via:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File "promote-draft.ps1" -DraftName <name>`
+- Automatically trigger snapshot backup upon completing any write task:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File "backup-obsidian-vault.ps1"`

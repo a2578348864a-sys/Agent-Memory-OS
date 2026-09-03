@@ -22,7 +22,7 @@
     "projectId": { "const": "agent-memory-os" },
     "revision": { "type": "integer", "minimum": 1 },
     "leaseStatus": { "enum": ["idle", "active"] },
-    "holderAgent": { "type": ["string", "null"], "enum": ["codex", "claude", "dsh", "gemini", null] },
+    "holderAgent": { "type": ["string", "null"], "enum": ["codex", "claude", "gemini", "cursor", "windsurf", null] },
     "leaseId": { "type": ["string", "null"], "pattern": "^[0-9a-f]{32}$" },
     "scope": { "type": ["string", "null"], "enum": ["automation_full_run", "nightly_health", "interactive_write", null] },
     "acquiredAtUtc": { "type": ["string", "null"], "format": "date-time" },

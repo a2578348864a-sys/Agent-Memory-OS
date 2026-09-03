@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $script:WriteLeaseSchemaVersion = 1
 $script:WriteLeaseProjectId = "agent-memory-os"
 $script:WriteLeaseOperations = @("Status", "InitializeIdle", "Acquire", "Renew", "Release", "CanWrite", "RecoverExpired")
-$script:WriteLeaseAgents = @("codex", "claude", "dsh", "gemini")
+$script:WriteLeaseAgents = @("codex", "claude", "gemini", "cursor", "windsurf")
 $script:WriteLeaseScopes = @("automation_full_run", "nightly_health", "interactive_write")
 $script:WriteLeaseTargetDomains = @("formal", "fixture")
 $script:WriteLeaseEventTypes = @("initialized_idle", "acquired", "renewed", "released", "expired_recovered")
@@ -193,9 +193,39 @@ function New-DualAgentWriteLeaseResult {
     return [pscustomobject]$result
 }
 
+function Get-DualAgentWriteLeaseVaultId {
+    [CmdletBinding()]
+    param([string]$VaultRoot)
+    if ([string]::IsNullOrWhiteSpace($VaultRoot)) {
+        $VaultRoot = Split-Path -Parent $PSScriptRoot
+    }
+    $normalized = [IO.Path]::GetFullPath($VaultRoot).TrimEnd("\/").ToLowerInvariant()
+    $metaPath = Join-Path $VaultRoot ".agent-memory-os.json"
+    if (Test-Path -LiteralPath $metaPath -PathType Leaf) {
+        try {
+            $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
+            if (-not [string]::IsNullOrWhiteSpace([string]$meta.vaultId) -and
+                (-not [string]::IsNullOrWhiteSpace([string]$meta.vaultRootPath)) -and
+                ([string]::Equals([string]$meta.vaultRootPath.TrimEnd("\/").ToLowerInvariant(), $normalized, [StringComparison]::OrdinalIgnoreCase))) {
+                return [string]$meta.vaultId
+            }
+        } catch {}
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($normalized))).Replace("-", "").Substring(0, 12).ToLowerInvariant()
+        return "vault-$hash"
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 function Get-DualAgentWriteLeaseDefaultRuntimeRoot {
+    [CmdletBinding()]
+    param([string]$VaultRoot)
     if ([string]::IsNullOrWhiteSpace([string]$env:LOCALAPPDATA)) { throw "lease_local_app_data_missing" }
-    return [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AgentMemoryOS\agent-memory-os-write-lease")).TrimEnd("\")
+    $vaultId = Get-DualAgentWriteLeaseVaultId -VaultRoot $VaultRoot
+    return [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AgentMemoryOS\$vaultId\write-lease")).TrimEnd("\")
 }
 
 function Get-DualAgentWriteLeaseFullPath {
@@ -244,7 +274,9 @@ function Assert-DualAgentWriteLeaseRuntimeRoot {
     }
     else {
         $fixed = Get-DualAgentWriteLeaseDefaultRuntimeRoot
-        if (-not [string]::Equals($root, $fixed, [StringComparison]::OrdinalIgnoreCase)) { throw "lease_runtime_root_not_approved" }
+        $appDataOS = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "AgentMemoryOS")).TrimEnd("\")
+        $isVault = (Test-DualAgentWriteLeasePathInside -ChildPath $root -RootPath $appDataOS)
+        if (-not $isVault -and -not [string]::Equals($root, $fixed, [StringComparison]::OrdinalIgnoreCase)) { throw "lease_runtime_root_not_approved" }
         Assert-DualAgentWriteLeaseNoReparsePath -Path $root -Boundary (Get-DualAgentWriteLeaseFullPath -Path $env:LOCALAPPDATA)
     }
     if ((Test-Path -LiteralPath $root) -and -not (Test-Path -LiteralPath $root -PathType Container)) { throw "lease_runtime_root_invalid" }

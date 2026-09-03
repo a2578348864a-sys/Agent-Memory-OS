@@ -11,8 +11,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $vaultRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-    $workspaceRoot = Split-Path -Parent (Split-Path -Parent $vaultRoot)
-    $TargetDir = Join-Path $workspaceRoot "_rollback_backups\obsidian-vault-snapshots"
+    $TargetDir = Join-Path $vaultRoot "_backups"
 }
 
 if (-not (Test-Path -LiteralPath $TargetDir -PathType Container)) {
@@ -44,9 +43,9 @@ try {
         "AGENTS.md",
         "GEMINI.md",
         "CLAUDE.md",
-        "Codex接入说明.md",
-        "Claude接入说明.md",
-        "Gemini接入说明.md"
+        "CODEX.md",
+        "README.md",
+        "README_CN.md"
     )
 
     $manifestEntries = New-Object System.Collections.ArrayList

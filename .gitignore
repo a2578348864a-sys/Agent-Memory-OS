@@ -17,3 +17,8 @@ Thumbs.db
 !.env.example
 *.pem
 *.key
+# Local Vault Metadata
+.agent-memory-os.json
+
+# Local Snapshots
+_backups/
