@@ -1,0 +1,77 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Windows PowerShell verification
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Environment info
+        shell: powershell
+        run: |
+          Write-Host "PowerShell: $($PSVersionTable.PSVersion)"
+          Write-Host "OS: $([System.Environment]::OSVersion.VersionString)"
+          Write-Host "Runner: $env:RUNNER_OS / $env:RUNNER_ARCH"
+          Write-Host "Commit: $env:GITHUB_SHA"
+
+      - name: Lease Core regression (DualAgentWriteLeaseCore.Tests.ps1)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/DualAgentWriteLeaseCore.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Lease Core suite passed (exit 0)"
+
+      - name: Lint validator tests (知识库lint检查器.Tests.ps1)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/知识库lint检查器.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Lint validator suite passed (exit 0)"
+
+      - name: Reset wrapper tests (ResetWrapper.Tests.ps1)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/ResetWrapper.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Reset wrapper suite passed (exit 0)"
+
+      - name: Fresh Clone E2E (FreshCloneE2E.Tests.ps1)
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/FreshCloneE2E.Tests.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Fresh Clone E2E suite passed (exit 0)"
+
+      - name: Repository lint must be clean (issues = 0)
+        shell: powershell
+        run: |
+          $raw = powershell -NoProfile -ExecutionPolicy Bypass -File "05_代码与配置/知识库lint检查器.ps1"
+          $result = ($raw | Out-String) | ConvertFrom-Json
+          if (-not $result.ok -or $result.summary.issues -ne 0) {
+            Write-Host ($result | ConvertTo-Json -Depth 10)
+            exit 1
+          }
+          Write-Host "Repository lint clean: issues = $($result.summary.issues)"
+
+      - name: Working tree must stay clean after tests
+        shell: powershell
+        run: |
+          $status = git status --short
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not [string]::IsNullOrWhiteSpace($status)) {
+            Write-Host "Working tree is not clean after running the test suites:"
+            Write-Host $status
+            exit 1
+          }
+          Write-Host "Working tree clean after tests"
