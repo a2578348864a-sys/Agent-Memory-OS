@@ -8,8 +8,10 @@ if errorlevel 1 (
   echo.
   echo [ERROR] Backup failed.
   if "%~1"=="" pause
+  exit /b 1
 ) else (
   echo.
   echo [SUCCESS] Vault snapshot created successfully.
   if "%~1"=="" pause
+  exit /b 0
 )

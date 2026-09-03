@@ -40,12 +40,17 @@ jobs:
       - name: Lint validator tests (kb lint suite)
         shell: powershell
         run: |
-          $known = @("DualAgentWriteLeaseCore.Tests.ps1", "ResetWrapper.Tests.ps1", "FreshCloneE2E.Tests.ps1")
-          $dir = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Directory | Where-Object { $_.Name -like "06_*" } | Select-Object -First 1
-          if ($null -eq $dir) { Write-Host "test dir not found"; exit 1 }
-          $candidates = @(Get-ChildItem -Path $dir.FullName -File -Filter "*.Tests.ps1")
-          $target = $candidates | Where-Object { $known -notcontains $_.Name } | Select-Object -First 1
-          if ($null -eq $target) { Write-Host "lint suite not found"; exit 1 }
+          $known = @("DualAgentWriteLeaseCore.Tests.ps1", "ResetWrapper.Tests.ps1", "FreshCloneE2E.Tests.ps1", "BackupWrapper.Tests.ps1")
+          $dirs = @(Get-ChildItem -Path $env:GITHUB_WORKSPACE -Directory | Where-Object { $_.Name -like "06_*" })
+          if ($dirs.Count -ne 1) { Write-Host "expected exactly one test directory (06_*)"; exit 1 }
+          $dir = $dirs[0]
+          $candidates = @(Get-ChildItem -Path $dir.FullName -File -Filter "*.Tests.ps1" | Where-Object { $known -notcontains $_.Name })
+          if ($candidates.Count -ne 1) {
+            Write-Host "expected exactly one lint validator test suite; found $($candidates.Count):"
+            $candidates | ForEach-Object { Write-Host $_.Name }
+            exit 1
+          }
+          $target = $candidates[0]
           powershell -NoProfile -ExecutionPolicy Bypass -File $target.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "Lint validator suite passed (exit 0)"
@@ -58,6 +63,16 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File $target.FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "Reset wrapper suite passed (exit 0)"
+
+      - name: Backup wrapper tests (BackupWrapper.Tests.ps1)
+        shell: powershell
+        run: |
+          $targets = @(Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -File -Filter "BackupWrapper.Tests.ps1")
+          if ($targets.Count -ne 1) { Write-Host "expected exactly one BackupWrapper.Tests.ps1"; exit 1 }
+          $target = $targets[0]
+          powershell -NoProfile -ExecutionPolicy Bypass -File $target.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host "Backup wrapper suite passed (exit 0)"
 
       - name: Fresh Clone E2E (FreshCloneE2E.Tests.ps1)
         shell: powershell
