@@ -1,4 +1,4 @@
-﻿# Agent-Memory-OS 🧠⚡
+# Agent-Memory-OS 🧠⚡
 
 <p align="center">
   <b>A Local-First, Concurrency-Safe External Memory Starter for Multi-Agent AI Coding</b><br>
@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/Concurrency-Local_Write_Lease-ec4899?style=flat-square" alt="Local Write Lease">
   <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="License">
   <a href="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml"><img src="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml/badge.svg?branch=main" alt="Windows CI"></a>
+  <a href="https://github.com/a2578348864a-sys/Agent-Memory-OS/releases/latest"><img src="https://img.shields.io/github/v/release/a2578348864a-sys/Agent-Memory-OS?style=flat-square&color=blue" alt="Latest Release"></a>
 </p>
 
 <p align="center">
@@ -178,7 +179,7 @@ Agent-Memory-OS/
 ├── 03_项目索引/ (03_Index)       # Cross-project relationship catalog
 ├── 04_执行记录/ (04_Logs)        # Audit ledger of agent execution runs
 ├── 05_代码与配置/ (05_Core)      # Concurrency kernel: lease, backup, expired-lease recovery, lint, promote
-├── 06_测试与验证/ (06_Tests)     # 36/62/10/68-assertion suites (Lease/Lint/Reset/E2E) & JSON Schema contracts
+├── 06_测试与验证/ (06_Tests)     # 206-assertion deterministic suites (Lease/Lint/Reset/Backup/E2E: 36/77/10/15/68) & JSON Schema contracts
 ├── 07_问题与踩坑/ (07_Pitfalls)  # Debugging case studies & root-cause records
 ├── 08_复盘与沉淀/ (08_Memory)    # Domain-routed scenario index & reusable agent rules
 ├── 09_模板/ (09_Templates)       # Standardized markdown templates
@@ -189,7 +190,7 @@ Agent-Memory-OS/
 
 ## 🛡️ Built-In Verification & Tests
 
-Agent-Memory-OS treats memory governance like tested software, with deterministic suites:
+Agent-Memory-OS treats memory governance like tested software, with 206 deterministic assertions across 5 automated suites:
 
 ```powershell
 # 1. Validate all knowledge cards syntax, structure, and bidirectional wiki-links
@@ -198,13 +199,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "05_代码与配置/知识�
 # 2. Run the 36-assertion Local Write Lease regression suite
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/DualAgentWriteLeaseCore.Tests.ps1"
 
-# 3. Run the 62-assertion Lint validator suite (cards, drafts, wiki-links, formal-card contract)
+# 3. Run the 77-assertion Lint validator suite (cards, drafts, wiki-links, formal-card contract)
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/知识库lint检查器.Tests.ps1"
 
-# 4. (Optional) Run the 10-assertion reset-wrapper suite (exit-code semantics)
+# 4. Run the 10-assertion reset-wrapper suite (safe recovery & exit-code semantics)
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/ResetWrapper.Tests.ps1"
 
-# 5. (Optional) Run the 68-assertion Fresh-Clone end-to-end journey
+# 5. Run the 15-assertion backup-wrapper suite (snapshot ZIP & SHA256 manifest)
+powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/BackupWrapper.Tests.ps1"
+
+# 6. Run the 68-assertion Fresh-Clone end-to-end journey (multi-vault isolation & atomic promote rollback)
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/FreshCloneE2E.Tests.ps1"
 ```
 

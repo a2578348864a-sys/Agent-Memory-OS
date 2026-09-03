@@ -1,4 +1,4 @@
-﻿# Agent-Memory-OS 🧠⚡
+# Agent-Memory-OS 🧠⚡
 
 <p align="center">
   <b>面向 AI 编程与多 Agent 协同的纯本地、并发安全的「外挂长期记忆」模板系统（Starter）</b><br>
@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/Concurrency-Local_Write_Lease-ec4899?style=flat-square" alt="Local Write Lease">
   <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="License">
   <a href="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml"><img src="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml/badge.svg?branch=main" alt="Windows CI"></a>
+  <a href="https://github.com/a2578348864a-sys/Agent-Memory-OS/releases/latest"><img src="https://img.shields.io/github/v/release/a2578348864a-sys/Agent-Memory-OS?style=flat-square&color=blue" alt="Latest Release"></a>
 </p>
 
 <p align="center">
@@ -177,7 +178,7 @@ Agent-Memory-OS/
 ├── 03_项目索引/                  # 跨项目关系索引目录
 ├── 04_执行记录/                  # 任务执行历史事实账本
 ├── 05_代码与配置/                # 治理内核：写租约、备份、过期租约恢复、Lint、提升器
-├── 06_测试与验证/                # 36/62/10/68 断言测试套件（Lease/Lint/Reset/E2E）与 Schema 契约
+├── 06_测试与验证/                # 206 项确定性断言套件（Lease/Lint/Reset/Backup/E2E: 36/77/10/15/68）与 Schema 契约
 ├── 07_问题与踩坑/                # 排查案例复盘，为卡片提炼提供事实来源
 ├── 08_复盘与沉淀/                # 场景化导航索引与可复用 Agent 规则
 ├── 09_模板/                      # 标准化卡片与决策模板
@@ -188,7 +189,7 @@ Agent-Memory-OS/
 
 ## 🛡️ 内置自动化测试与质量保障
 
-Agent-Memory-OS 将长期记忆治理当作可测试的软件工程，配备确定性测试集：
+Agent-Memory-OS 将长期记忆治理当作可测试的软件工程，配备 5 大自动化测试套件与 206 项确定性断言：
 
 ```powershell
 # 1. 验证所有知识卡片的语法、7段式结构和双向链接
@@ -197,13 +198,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "05_代码与配置/知识�
 # 2. 运行 36 项断言的写租约互斥测试套件
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/DualAgentWriteLeaseCore.Tests.ps1"
 
-# 3. 运行 62 项断言的卡片 Lint 校验器测试套件（正式卡、草稿、双链、合同）
+# 3. 运行 77 项断言的卡片 Lint 校验器测试套件（正式卡、草稿、双链、合同）
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/知识库lint检查器.Tests.ps1"
 
-# 4.（可选）运行 10 项断言的 Reset 包装退出码语义套件
+# 4. 运行 10 项断言的 Reset 包装退出码语义套件（安全自愈与状态恢复）
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/ResetWrapper.Tests.ps1"
 
-# 5.（可选）运行 68 项断言的 Fresh-Clone 端到端旅程套件
+# 5. 运行 15 项断言的 Backup 包装测试套件（快照归档与 SHA256 清单）
+powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/BackupWrapper.Tests.ps1"
+
+# 6. 运行 68 项断言的 Fresh-Clone 端到端旅程套件（多库隔离与提升原子回滚）
 powershell -NoProfile -ExecutionPolicy Bypass -File "06_测试与验证/FreshCloneE2E.Tests.ps1"
 ```
 
