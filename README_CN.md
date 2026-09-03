@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/Storage-Obsidian_Markdown-8b5cf6?style=flat-square" alt="Obsidian Markdown">
   <img src="https://img.shields.io/badge/Concurrency-Local_Write_Lease-ec4899?style=flat-square" alt="Local Write Lease">
   <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="License">
+  <a href="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml"><img src="https://github.com/a2578348864a-sys/Agent-Memory-OS/actions/workflows/windows-ci.yml/badge.svg?branch=main" alt="Windows CI"></a>
 </p>
 
 <p align="center">
