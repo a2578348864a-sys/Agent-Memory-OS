@@ -1,0 +1,19 @@
+# Obsidian Local Workspace Settings
+.obsidian/workspace*
+.obsidian/graph.json
+.obsidian/hotkeys.json
+
+# Local Runtime Caches & Temporary Files
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+*.lock
+.backup*/
+
+# Environment Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
