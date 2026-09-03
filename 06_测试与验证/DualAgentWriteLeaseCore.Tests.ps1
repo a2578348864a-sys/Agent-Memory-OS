@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version 2.0
+Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
 $script:LeaseAssertionCount = 0
@@ -50,6 +50,14 @@ $formalHashBefore = Get-LeaseProtectedManifestHash -Roots $protectedRoots
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("DualAgentWriteLease-Test-" + [guid]::NewGuid().ToString("N"))
 [void][IO.Directory]::CreateDirectory($testRoot)
 
+$systemTempNormalized = Get-DualAgentWriteLeaseFullPath -Path ([IO.Path]::GetTempPath())
+$nonTempBase = [IO.Path]::GetPathRoot($systemTempNormalized)
+$syntheticNonTempRoot = Join-Path $nonTempBase ("AgentMemoryOS-NonTemp-Probe-" + [guid]::NewGuid().ToString("N"))
+if (Test-DualAgentWriteLeasePathInside -ChildPath $syntheticNonTempRoot -RootPath $systemTempNormalized) {
+    throw "Synthetic probe was unexpectedly inside system TEMP: $syntheticNonTempRoot"
+}
+$syntheticNonTempFormalTarget = Join-Path $syntheticNonTempRoot "formal-target.json"
+
 try {
     $empty = Invoke-DualAgentWriteLease -Operation Status -RuntimeRoot $testRoot -AllowSystemTempFixture `
         -TestOnlyNowUtc "2026-08-11T00:00:00.0000000Z"
@@ -89,7 +97,7 @@ try {
     $fixtureToFormalRejected = $false
     try {
         [void](Assert-DualAgentWriteLeaseTargetDomain -LeaseContext $leaseContext -TargetDomain formal `
-            -TargetPaths @($corePath) -AllowedScopes @("automation_full_run"))
+            -TargetPaths @($syntheticNonTempFormalTarget) -AllowedScopes @("automation_full_run"))
     }
     catch { $fixtureToFormalRejected = ([string]$_.Exception.Message -ceq "lease_target_domain_mismatch") }
     Assert-LeaseTrue $fixtureToFormalRejected "A fixture LeaseContext was accepted for a formal target."
@@ -320,12 +328,13 @@ try {
         $rogueResult.reasonCode -ceq "lease_runtime_unregistered_file") "An unregistered lease runtime file was accepted."
     [IO.File]::Delete($roguePath)
 
-    $outsideResult = Invoke-DualAgentWriteLease -Operation Status -RuntimeRoot $projectRoot -AllowSystemTempFixture `
+    $outsideResult = Invoke-DualAgentWriteLease -Operation Status -RuntimeRoot $syntheticNonTempRoot -AllowSystemTempFixture `
         -TestOnlyNowUtc "2026-08-11T02:21:02.0000000Z"
     $unapprovedResult = Invoke-DualAgentWriteLease -Operation Status -RuntimeRoot $concurrentRoot `
         -TestOnlyNowUtc "2026-08-11T02:21:02.0000000Z"
     Assert-LeaseTrue ($outsideResult.reasonCode -ceq "lease_test_root_not_system_temp" -and
-        $unapprovedResult.reasonCode -ceq "lease_runtime_root_not_approved") "A lease runtime crossed its approved path boundary."
+        $unapprovedResult.reasonCode -ceq "lease_runtime_root_not_approved" -and
+        -not (Test-Path -LiteralPath $syntheticNonTempRoot)) "A lease runtime crossed its approved path boundary."
 
     $junctionTarget = Join-Path $testRoot "junction-target"
     $junctionRoot = Join-Path $testRoot "junction-runtime"
