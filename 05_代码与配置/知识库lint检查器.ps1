@@ -100,7 +100,7 @@ function Get-NormalizedWikiTarget {
 
 function Get-WikiLinkTargetsInText {
     param([Parameter(Mandatory = $true)][string]$Text)
-    $targets = New-Object System.Collections.Generic.HashSet[string]
+    $targets = New-Object System.Collections.Generic.List[string]
     $sb = New-Object System.Text.StringBuilder
     $inFence = $false
     foreach ($line in @($Text -split "`r?`n")) {
@@ -112,7 +112,8 @@ function Get-WikiLinkTargetsInText {
     $plain = [regex]::Replace($plain, '`[^`]*`', '')
     foreach ($m in [regex]::Matches($plain, '\[\[(?<body>[^\[\]]+)\]\]')) {
         $target = Get-NormalizedWikiTarget -LinkBody $m.Groups["body"].Value
-        if (-not [string]::IsNullOrWhiteSpace($target)) { [void]$targets.Add($target) }
+        # 保首次出现顺序去重，供调用方按源文件逐条报告（不跨文件去重）
+        if (-not [string]::IsNullOrWhiteSpace($target) -and -not $targets.Contains($target)) { $targets.Add($target) }
     }
     return $targets
 }
@@ -339,18 +340,17 @@ function Invoke-KbLint {
     # 5. 全库双链：Obsidian WikiLink 目标必须真实存在于库内。
     #    支持 [[文件名]]、[[文件名|别名]]、[[文件名#标题]]、[[目录/文件名]]、[[目录/文件名|别名]]；
     #    不要求带 .md 后缀，按 vault 相对路径或 basename 规范化解析；代码块/行内代码不参与解析。
+    #    finding.file 为该 WikiLink 所在源 Markdown 文件的仓库相对路径（不再使用 "(all)"）。
     $noteIndex = Get-VaultNoteIndex -VaultRoot $VaultRoot
-    $checkedTargets = New-Object System.Collections.Generic.HashSet[string]
     foreach ($mdFile in @(Get-ChildItem -LiteralPath $VaultRoot -Filter "*.md" -File -Recurse -ErrorAction SilentlyContinue)) {
         $fileContent = Get-FileContentUtf8 -Path $mdFile.FullName
+        $relFile = $mdFile.FullName.Substring($VaultRoot.Length).TrimStart('\', '/').Replace('\', '/')
         foreach ($target in @(Get-WikiLinkTargetsInText -Text $fileContent)) {
-            if ($checkedTargets.Contains($target)) { continue }
-            [void]$checkedTargets.Add($target)
             $resolve = Test-WikiTargetResolves -Target $target -NoteIndex $noteIndex
             if ($resolve -eq "ambiguous_base") {
-                [void]$findings.Add([ordered]@{ type = "wiki_link_ambiguous"; file = "(all)"; detail = "双链 basename 在多个目录重复，请改用带目录的相对路径: $target" })
+                [void]$findings.Add([ordered]@{ type = "wiki_link_ambiguous"; file = $relFile; detail = "双链 basename 在多个目录重复，请改用带目录的相对路径: $target" })
             } elseif ($resolve -eq "missing") {
-                [void]$findings.Add([ordered]@{ type = "wiki_link_missing"; file = "(all)"; detail = "双链指向不存在的笔记: $target" })
+                [void]$findings.Add([ordered]@{ type = "wiki_link_missing"; file = $relFile; detail = "双链指向不存在的笔记: $target" })
             }
         }
     }

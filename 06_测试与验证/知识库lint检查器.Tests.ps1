@@ -456,6 +456,64 @@ Assert-True ($r.ok -eq $true) "T32 合法日期与证据等级应 ok=true"
 $bad = @($r.findings | Where-Object { $_.type -in @("card_verified_at_sentinel", "card_verified_at_invalid", "card_evidence_level_invalid") })
 Assert-True ($bad.Count -eq 0) "T32 不应报告日期/证据合同问题"
 
+# --- 测试 33：wiki_link_missing 必须报告真实源文件（不再 file="(all)"）---
+$v = New-WikiVault "src-single" @("[[target-missing-a]]")
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T33 单文件缺失应 ok=false"
+$m33 = @($r.findings | Where-Object { $_.type -eq "wiki_link_missing" })
+Assert-True ($m33.Count -ge 1) "T33 应报告 wiki_link_missing"
+Assert-True (@($m33 | Where-Object { $_.file -eq "04_执行记录/示例记录.md" }).Count -ge 1) "T33 finding.file 应指向源文件 04_执行记录/示例记录.md"
+Assert-True (@($m33 | Where-Object { $_.file -eq "(all)" }).Count -eq 0) "T33 missing 不得再使用 file=(all)"
+
+# --- 测试 34：两个源文件各自 missing 不得串线 ---
+$v = New-WikiVault "src-multi" @()
+New-PlainNote -Vault $v -RelativePath "04_执行记录\source-a.md" -Content "# a`n`n[[missing-a]]"
+New-PlainNote -Vault $v -RelativePath "07_问题与踩坑\source-b.md" -Content "# b`n`n[[missing-b]]"
+$r = Run-Lint $v
+$m34 = @($r.findings | Where-Object { $_.type -eq "wiki_link_missing" })
+Assert-True ($m34.Count -ge 2) "T34 应报告两条 wiki_link_missing"
+$fa34 = @($m34 | Where-Object { $_.detail -match "missing-a" })
+$fb34 = @($m34 | Where-Object { $_.detail -match "missing-b" })
+Assert-True ($fa34.Count -eq 1 -and $fa34[0].file -eq "04_执行记录/source-a.md") "T34 missing-a 应定位到 source-a.md"
+Assert-True ($fb34.Count -eq 1 -and $fb34[0].file -eq "07_问题与踩坑/source-b.md") "T34 missing-b 应定位到 source-b.md"
+
+# --- 测试 35：ambiguous 必须定位到真实源文件 ---
+$v = New-WikiVault "src-ambig" @()
+New-PlainNote -Vault $v -RelativePath "04_执行记录\甲\shared.md" -Content "# 甲"
+New-PlainNote -Vault $v -RelativePath "07_问题与踩坑\乙\shared.md" -Content "# 乙"
+New-PlainNote -Vault $v -RelativePath "04_执行记录\source-c.md" -Content "# c`n`n[[shared]]"
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $false) "T35 同名歧义应 ok=false"
+$am35 = @($r.findings | Where-Object { $_.type -eq "wiki_link_ambiguous" })
+Assert-True ($am35.Count -ge 1) "T35 应报告 wiki_link_ambiguous"
+Assert-True (@($am35 | Where-Object { $_.file -eq "04_执行记录/source-c.md" }).Count -ge 1) "T35 ambiguous 应定位到 source-c.md"
+Assert-True (@($am35 | Where-Object { $_.file -eq "(all)" }).Count -eq 0) "T35 ambiguous 不得再使用 file=(all)"
+
+# --- 测试 36：source tracking 不得对有效链接误报 ---
+$v = New-WikiVault "src-valid" @("[[正常卡片]]")
+$r = Run-Lint $v
+Assert-True ($r.ok -eq $true) "T36 有效链接（带来源追踪）应 ok=true"
+Assert-True (@($r.findings | Where-Object { $_.type -in @("wiki_link_missing", "wiki_link_ambiguous") }).Count -eq 0) "T36 不应有 missing/ambiguous"
+
+# --- 测试 37：代码块中的 [[...]] 不得生成 missing finding ---
+$v = New-WikiVault "src-fence" @()
+$fenceContent = @'
+# 标题
+
+```text
+[[missing-in-code]]
+```
+'@
+New-PlainNote -Vault $v -RelativePath "04_执行记录\fence.md" -Content $fenceContent
+$r = Run-Lint $v
+Assert-True (@($r.findings | Where-Object { $_.type -eq "wiki_link_missing" }).Count -eq 0) "T37 代码块内链接不应报告 missing"
+
+# --- 测试 38：行内代码中的 [[...]] 不得生成 missing finding ---
+$v = New-WikiVault "src-inline" @()
+New-PlainNote -Vault $v -RelativePath "04_执行记录\inline.md" -Content "# t`n`n使用 ``[[missing-inline]]`` 行内代码（不应解析）"
+$r = Run-Lint $v
+Assert-True (@($r.findings | Where-Object { $_.type -eq "wiki_link_missing" }).Count -eq 0) "T38 行内代码链接不应报告 missing"
+
 # 清理
 Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 
