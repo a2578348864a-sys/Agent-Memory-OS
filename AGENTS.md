@@ -1,43 +1,43 @@
-﻿# Agent Memory OS 多 Agent 协同规则
+﻿# Agent-Memory-OS Multi-Agent Rules
 
-你是接入本记忆库的 AI 编程助手（如 Claude Code, Codex, Gemini, Cursor, Windsurf 等）。
-本知识库是长期记忆中心，跨任务、跨会话、跨模型共享。
-
----
-
-## 每次操作前先读
-
-1. `AGENTS.md`（本文件）
-2. [[00_知识库总览]]
-3. [[08_复盘与沉淀/自动复用索引]]
-4. `04_执行记录/` 中最新一条记录
-
-读完后用中文向用户汇报：理解的目标、准备读或改哪些文件、明确不会碰哪些内容。
+You are an AI coding assistant (Claude Code, OpenAI Codex, Gemini, Cursor, Windsurf, etc.) connected to this knowledge vault.
+This repository serves as your long-term engineering memory across tasks, sessions, and models.
 
 ---
 
-## 多 Agent 正式写入门禁（Write Lease）
+## 1. Reading Order (Before Taking Action)
 
-- **身份声明**：每个 Agent 必须声明自身固定身份（如 `claude`, `codex`, `gemini`, `cursor`）。
-- **只读操作免租约**：日常检索、只读检查、运行 Lint 校验不需要取得租约。
-- **批量/正式写操作必须申请租约**：在直接修改本库正式文件前，调用 `05_代码与配置/DualAgentWriteLeaseCore.ps1` 的 `Acquire` 取得短租约（日常交互写入使用 `interactive_write`）。
-- **全自动自愈协议**：若检测到前序租约因会话意外中断而处于过期状态（`expired`），允许且必须由 Agent 自动调用 `05_代码与配置/重置写租约.ps1` 恢复为空闲基线，严禁因死锁向用户抛出异常中断。
-- **写操作后全自动静默备份**：任何 Agent 在向知识库新增或修改正式卡片/记录后，必须在收尾阶段静默调用 `05_代码与配置/知识库本地快照备份.ps1`，确保核心卡片随时拥有本地滚动快照，无需用户手动操作。
+1. `AGENTS.md` (This file)
+2. `00_知识库总览.md`
+3. `08_复盘与沉淀/自动复用索引.md`
+4. The latest execution record in `04_执行记录/`
+
+Report back clearly: your understanding of the goal, what files you plan to read/modify, and what you explicitly will not touch.
 
 ---
 
-## 知识卡片规范（7 段式结构）
+## 2. Distributed Write Lease (Concurrency Mutex)
 
-所有沉淀在 `02_知识卡片/` 的原子化卡片必须严格遵循标准 7 段式：
-1. **结论**：1~2 句话直接给出硬核结论。
-2. **适用场景**：明确什么时候用。
-3. **最小做法**：最少且可执行的步骤或代码片段。
-4. **验证**：如何证明这样做有效。
-5. **不适用**：边界情况与反模式。
-6. **风险**：失败路径与潜在隐患。
-7. **来源**：事实根据（如引用的踩坑记录或项目实践）。
+- **Agent Identity**: Every agent must declare its fixed identity (`claude`, `codex`, `gemini`, `cursor`). Never borrow or forge another agent's identity.
+- **Read-Only Operations**: Ordinary searches, queries, inspections, and lint checks require no lease.
+- **Formal Mutations Require a Lease**: Before directly writing or modifying vault files, acquire a short write lease via `05_代码与配置/DualAgentWriteLeaseCore.ps1 -Operation Acquire -Agent <your-identity> -Scope interactive_write`.
+- **Self-Healing Protocol**: If you detect that a preceding lease expired due to an unexpected session crash or timeout, you must automatically invoke `05_代码与配置/重置写租约.ps1` to restore the idle baseline. Never throw an unhandled error to block the user.
+- **Post-Write Automated Snapshot**: Whenever you create or modify a formal knowledge card or record, invoke `05_代码与配置/知识库本地快照备份.ps1` during task completion to ensure rolling snapshot protection.
 
-Frontmatter 必须包含：
+---
+
+## 3. Knowledge Card Contract (7-Section Standard)
+
+All atomic cards in `02_知识卡片/` must adhere to the 7-section structure:
+1. **Conclusion (结论)**: Hard-hitting takeaway in 1~2 sentences.
+2. **Applicable Scenarios (适用场景)**: When to apply this pattern.
+3. **Minimal Implementation (最小做法)**: The smallest reproducible steps or code.
+4. **Verification (验证)**: Objective proof that this works.
+5. **Non-Applicable (不适用)**: Boundary conditions and anti-patterns.
+6. **Risks (风险)**: Failure paths and hidden assumptions.
+7. **Sources (来源)**: Concrete fact citation (e.g. debugging log or project commit).
+
+Required Frontmatter:
 ```yaml
 ---
 status: verified
@@ -50,8 +50,8 @@ evidence_level: verified-single-project
 
 ---
 
-## 安全边界
+## 4. Security Boundaries
 
-严禁在知识库中记录或打印：
-- `.env`、API Key、Token、密码、敏感业务商业机密。
-- 未经用户授权，严禁擅自修改 `.obsidian/` 配置或批量删除笔记。
+Never output, copy, or persist:
+- `.env`, API Keys, Tokens, Passwords, Database connection strings, or sensitive proprietary data.
+- Never modify `.obsidian/` configuration or delete notes without explicit user authorization.

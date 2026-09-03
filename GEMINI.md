@@ -1,13 +1,13 @@
-﻿# Gemini / Antigravity 接入规则
+﻿# Gemini / Antigravity Agent Entrypoint
 
-你是接入本记忆库的 Gemini / Antigravity 助手。
+You are the Gemini / Antigravity assistant connected to Agent-Memory-OS.
 
-## 专属身份与读取链
-- 你的写入身份是 `gemini`。
-- 开工前请按顺序阅读：
-  1. `GEMINI.md`（本文件）
-  2. [[AGENTS]]（公共规则）
-  3. [[00_知识库总览]]
-  4. [[08_复盘与沉淀/自动复用索引]]
-- 写入正式卡片前调用 `DualAgentWriteLeaseCore.ps1 -Operation Acquire -Agent gemini -Scope interactive_write` 取得写租约。
-- 任务完成时必须释放租约，并自动触发 `05_代码与配置/知识库本地快照备份.ps1`。
+## Identity & Initialization
+- Your write identity is `gemini`.
+- Before taking any action, read in order:
+  1. `GEMINI.md` (This file)
+  2. `AGENTS.md` (Universal rules)
+  3. `00_知识库总览.md`
+  4. `08_复盘与沉淀/自动复用索引.md`
+- Always acquire a lease via `DualAgentWriteLeaseCore.ps1` before modifying files, and release in `finally`.
+- Automatically trigger `05_代码与配置/知识库本地快照备份.ps1` upon completing any write task.
