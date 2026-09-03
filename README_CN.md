@@ -35,7 +35,7 @@
 **Agent-Memory-OS 是一套纯本地、Windows 优先的模板系统（Starter），提供以下能力：**
 
 - 📂 **纯本地优先（Local-First）**：基于标准 Obsidian Markdown，所有卡片和经验都留在你自己的硬盘上，零外部服务依赖。
-- 🔒 **本地多 Agent 写租约（Write Lease）**：内置轻量互斥写租约 CLI（`lease.ps1`），避免多模型并发写入互相覆盖，支持过期租约自愈恢复（`lease.ps1 recover`）。
+- 🔒 **本地多 Agent 写租约（Write Lease）**：内置轻量互斥写租约 CLI（`lease.ps1`），避免多模型并发写入互相覆盖；调用 `lease.ps1 recover` 时会检查并安全恢复已过期租约。
 - 🛡️ **Agent 驱动的快照备份（Snapshot Workflow）**：一条命令（`backup-obsidian-vault.ps1`）即可生成带 SHA256 完整性清单的滚动 ZIP 快照；Agent 在写任务收尾时主动触发，保护知识卡片。
 - 🎯 **场景化导航（Domain-Targeted Navigation）**：开工前先读 `08_复盘与沉淀/自动复用索引.md`，按场景靶向检索相关卡片，减少上下文稀释。
 - 📐 **确定性质量门禁（Quality Gates）**：原子化 7 段式卡片合同 + 确定性 Lint 校验 + 原子转正工具（`promote-draft.ps1`），未审核草稿无法悄悄进入长期记忆。
@@ -65,7 +65,7 @@ graph TD
 
     subgraph Kernel["核心治理与安全层 (Kernel)"]
         Lease["写租约互斥<br>(lease.ps1 / DualAgentWriteLeaseCore.ps1)"]
-        Reset["死锁自愈引擎<br>(lease.ps1 recover)"]
+        Reset["过期租约安全恢复<br>(lease.ps1 recover)"]
         Promote["草稿卡提升器<br>(promote-draft.ps1)"]
         Backup["快照备份入口<br>(backup-obsidian-vault.ps1)"]
         Lint["7段式卡片与双链校验<br>(知识库lint检查器.ps1)"]
@@ -85,7 +85,7 @@ graph TD
     Cursor -->|申请写租约| Lease
 
     Lease -->|审计并授权落盘| Cards
-    Reset -.->|自动识别并解锁| Lease
+    Reset -.->|调用 recover 时恢复过期租约| Lease
     Promote -->|原子提升转正| Cards
     Backup -.->|Agent 收尾触发| Cards
     Lint -.->|质量门禁校验| Cards
@@ -98,7 +98,7 @@ graph TD
 | 特性维度 | 传统单会话 AI / 提示词库 | 重型向量检索库 (RAG/Vector DB) | 静态提示词列表 (.cursorrules) | **Agent-Memory-OS (本项目)** |
 | :--- | :--- | :--- | :--- | :--- |
 | **持久性** | ❌ 换个窗口立即遗忘 | ⚠️ 依赖本地/云端服务常驻 | ⚠️ 静态，无法自我演进 | ✅ **永久纯本地存储（Markdown）** |
-| **多 Agent 协同** | ❌ 毫无防护，并发踩踏 | ❌ 仅检索，无写锁机制 | ❌ 无并发保护 | 🏆 **本地写租约 + 过期自愈恢复** |
+| **多 Agent 协同** | ❌ 毫无防护，并发踩踏 | ❌ 仅检索，无写锁机制 | ❌ 无并发保护 | 🏆 **本地写租约 + 过期租约安全恢复** |
 | **部署成本** | ✅ 零配置 | ❌ 需 Docker / Redis / 数据库 | ✅ 复制粘贴 | 🏆 **克隆即用，零外部依赖** |
 | **知识纯度** | ❌ 幻觉提示词满天飞 | ⚠️ 向量近似猜测，质量失控 | ❌ 未校验的文本块 | 🏆 **严格 7 段式卡片 + Lint 门禁** |
 | **容灾保护** | ❌ 误删直接全损 | ⚠️ 需手动配置数据库备份 | ❌ 无备份机制 | 🏆 **滚动 ZIP 快照 + SHA256 清单** |
@@ -127,10 +127,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "setup.ps1"
   > *“在编写代码或修改架构前，务必先阅读 `AGENTS.md` 并查阅 `08_复盘与沉淀/自动复用索引.md` 中的相关经验。”*
 
 ### 第 3 步：并发安全的日常操作
-所有 AI 助手均通过标准的命令行接口进行操作：
+所有 AI 助手均通过标准的命令行接口进行操作。草稿模板只是起点、不是成稿——必须先填写真实内容并人工审核，才能进入 Promote（见第 0 步）：
 ```powershell
 # 0. 先把草稿卡放入暂存区（演示：将草稿模板复制到 _drafts/）
 Copy-Item "09_模板\知识卡片草稿模板.md" "02_知识卡片\_drafts\demo-card.md"
+
+# 重要：模板只是起点，不是成稿。Promote 前必须编辑 demo-card.md：
+#   - 替换占位标题（# 卡片标题（草稿））
+#   - 填写 7 个章节（## 结论 … ## 来源）的真实内容
+#   - 将 frontmatter 的 source: 指向 raw/ 下真实存在的资料（如 raw/demo-source.md）
+#   - 在 ## 来源 章节中写明对应的真实来源
+# 完成人工审核后，再申请租约并 Promote。
 
 # 1. 修改文件前申请写租约，并从返回 JSON 中读取 leaseId
 $lease = powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire <your-agent> | ConvertFrom-Json
@@ -158,7 +165,7 @@ Agent-Memory-OS/
 ├── lease.ps1                     # 本地多 Agent 写租约 CLI 工具
 ├── promote-draft.ps1             # 原子两阶段草稿卡转正提升工具
 ├── backup-obsidian-vault.ps1     # 滚动快照备份入口（Agent 收尾触发）
-├── reset-obsidian-lease.ps1      # 租约死锁安全恢复入口
+├── reset-obsidian-lease.ps1      # 过期租约安全恢复入口（用户/Agent 调用时生效）
 ├── AGENTS.md                     # 多 Agent 协同统一规则源
 ├── CLAUDE.md / CODEX.md / GEMINI.md  # 各工具专属接入配置
 ├── 一键备份知识库.cmd             # Windows 极简双击备份入口
@@ -168,7 +175,7 @@ Agent-Memory-OS/
 │   └── _drafts/                  # 新卡片草稿区（待审核提升）
 ├── 03_项目索引/                  # 跨项目关系索引目录
 ├── 04_执行记录/                  # 任务执行历史事实账本
-├── 05_代码与配置/                # 治理内核：写租约、备份、自愈、Lint、提升器
+├── 05_代码与配置/                # 治理内核：写租约、备份、过期租约恢复、Lint、提升器
 ├── 06_测试与验证/                # 36/62/10/68 断言测试套件（Lease/Lint/Reset/E2E）与 Schema 契约
 ├── 07_问题与踩坑/                # 排查案例复盘，为卡片提炼提供事实来源
 ├── 08_复盘与沉淀/                # 场景化导航索引与可复用 Agent 规则

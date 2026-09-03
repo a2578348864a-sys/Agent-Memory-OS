@@ -35,7 +35,7 @@ Every developer building software with modern AI coding assistants (Claude Code,
 **Agent-Memory-OS is a local-first, Windows-first starter system that addresses these with:**
 
 - 📂 **Local-First & Human-Curated**: Built on standard Obsidian Markdown with bidirectional wiki-links. All of your engineering knowledge stays on your disk.
-- 🔒 **Local Multi-Agent Write Lease**: A lightweight cooperative lease mutex protocol (`lease.ps1`) that enforces strict write boundaries, reduces write race conditions, and supports self-healing recovery of stale leases (`lease.ps1 recover`).
+- 🔒 **Local Multi-Agent Write Lease**: A lightweight cooperative lease mutex protocol (`lease.ps1`) that enforces strict write boundaries, reduces write race conditions, and supports safe recovery of expired leases when `lease.ps1 recover` is invoked.
 - 🛡️ **Agent-Governed Snapshot Workflow**: one command (`backup-obsidian-vault.ps1`) takes a rolling snapshot ZIP with a SHA256 integrity manifest; agents invoke it at task end to protect knowledge cards.
 - 🎯 **Domain-Targeted Navigation**: a scenario index (`08_复盘与沉淀/自动复用索引.md`) that routes agents to relevant cards before work, reducing context dilution.
 - 📐 **Deterministic Quality Gates**: atomic 7-section card contracts + deterministic lint validators + atomic draft promotion (`promote-draft.ps1`), so unreviewed drafts cannot quietly enter long-term memory.
@@ -65,7 +65,7 @@ graph TD
 
     subgraph Kernel["Governance & Concurrency Kernel"]
         Lease["Write Lease Mutex<br>(lease.ps1 / DualAgentWriteLeaseCore.ps1)"]
-        Reset["Self-Healing Engine<br>(lease.ps1 recover)"]
+        Reset["Safe Expired-Lease Recovery<br>(lease.ps1 recover)"]
         Promote["Draft Promoter<br>(promote-draft.ps1)"]
         Backup["Snapshot Runner<br>(backup-obsidian-vault.ps1)"]
         Lint["Contract & Lint Validator<br>(知识库lint检查器.ps1)"]
@@ -85,7 +85,7 @@ graph TD
     Cursor -->|Acquire Lease| Lease
 
     Lease -->|Audit & Grant| Cards
-    Reset -.->|Auto-Recover Stale Locks| Lease
+    Reset -.->|Recovers expired lease when invoked| Lease
     Promote -->|Atomic Promotion| Cards
     Backup -.->|Agent-Triggered Snapshot| Cards
     Lint -.->|Quality Gate| Cards
@@ -98,7 +98,7 @@ graph TD
 | Capability Dimension | Single-Session AI Prompts | Heavy RAG / Vector DBs (Chroma/Mem0) | Static Prompt Lists (.cursorrules) | **Agent-Memory-OS (This Project)** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Persistence** | ❌ Wiped on new session | ⚠️ Complex DB storage | ⚠️ Static, cannot self-evolve | ✅ **Permanent, human-editable Markdown** |
-| **Multi-Agent Safety** | ❌ Complete race conditions | ❌ Retrieval only, no write lock | ❌ No concurrency protection | 🏆 **Local Multi-Agent Write Lease + Self-Healing** |
+| **Multi-Agent Safety** | ❌ Complete race conditions | ❌ Retrieval only, no write lock | ❌ No concurrency protection | 🏆 **Local Multi-Agent Write Lease + Safe Expired-Lease Recovery** |
 | **Setup Overhead** | ✅ Zero | ❌ Requires Docker, Redis, APIs | ✅ Copy & Paste | 🏆 **Zero external services, clone & run** |
 | **Knowledge Quality** | ❌ Hallucination prone | ⚠️ Vector similarity guesses | ❌ Unchecked text blobs | 🏆 **Strict 7-section cards + Lint tests** |
 | **Disaster Recovery** | ❌ Irreversible data loss | ⚠️ Requires database backups | ❌ No backup mechanism | 🏆 **Rolling snapshot ZIP + SHA256 manifest** |
@@ -127,10 +127,18 @@ Mount this vault directory into your development workspace:
   > *"Always read `AGENTS.md` and check `08_复盘与沉淀/自动复用索引.md` for domain-relevant lessons before writing code or modifying project architecture."*
 
 ### Step 3: Concurrency-Safe Operations
-All AI agents interact through the safe CLI:
+All AI agents interact through the safe CLI. The draft template is a starting point, not a finished draft — fill it with real content and review it before promotion (see Step 0):
 ```powershell
 # 0. Stage a draft card first (demo: copy the draft template into _drafts/)
 Copy-Item "09_模板\知识卡片草稿模板.md" "02_知识卡片\_drafts\demo-card.md"
+
+# IMPORTANT: the template is a starting point, NOT a finished draft.
+# Before promotion you MUST edit demo-card.md to:
+#   - replace the placeholder title (# 卡片标题（草稿）)
+#   - fill all 7 sections (## 结论 ... ## 来源) with real content
+#   - set frontmatter `source:` to a real file under raw/ (e.g. raw/demo-source.md)
+#   - write the corresponding source notes inside the ## 来源 section
+# Then review the draft manually before acquiring a lease and promoting it.
 
 # 1. Acquire a write lease - read the returned leaseId
 $lease = powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" acquire <your-agent> | ConvertFrom-Json
@@ -158,7 +166,7 @@ Agent-Memory-OS/
 ├── lease.ps1                     # Local Multi-Agent Write Lease CLI
 ├── promote-draft.ps1             # Atomic 2-phase draft card promoter
 ├── backup-obsidian-vault.ps1     # Rolling snapshot backup runner (agent-invoked)
-├── reset-obsidian-lease.ps1      # Safe lease recovery & self-healing runner
+├── reset-obsidian-lease.ps1      # Safe expired-lease recovery runner (user/agent invoked)
 ├── AGENTS.md                     # Universal multi-agent rule source
 ├── CLAUDE.md / CODEX.md / GEMINI.md  # Per-agent specialized entrypoints
 ├── 一键备份知识库.cmd             # Windows double-click backup shortcut
@@ -168,7 +176,7 @@ Agent-Memory-OS/
 │   └── _drafts/                  # Staged candidate drafts under review
 ├── 03_项目索引/ (03_Index)       # Cross-project relationship catalog
 ├── 04_执行记录/ (04_Logs)        # Audit ledger of agent execution runs
-├── 05_代码与配置/ (05_Core)      # Concurrency kernel: lease, backup, self-healing, lint, promote
+├── 05_代码与配置/ (05_Core)      # Concurrency kernel: lease, backup, expired-lease recovery, lint, promote
 ├── 06_测试与验证/ (06_Tests)     # 36/62/10/68-assertion suites (Lease/Lint/Reset/E2E) & JSON Schema contracts
 ├── 07_问题与踩坑/ (07_Pitfalls)  # Debugging case studies & root-cause records
 ├── 08_复盘与沉淀/ (08_Memory)    # Domain-routed scenario index & reusable agent rules

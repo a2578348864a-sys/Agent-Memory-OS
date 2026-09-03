@@ -30,12 +30,12 @@ Report back clearly: your understanding of the goal, what files you plan to read
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" release <your-agent-identity>
   ```
-- **Self-Healing Protocol**:
-  If a preceding lease expired due to an unexpected session crash or timeout, invoke recovery to restore the idle baseline:
+- **Expired-Lease Recovery (on invocation)**:
+  Recovery is not a background daemon — when you invoke `lease.ps1 recover`, it checks the current lease and safely recovers it if it has expired. If a preceding lease expired due to an unexpected session crash or timeout, invoke recovery to restore the idle baseline:
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File "lease.ps1" recover
   ```
-  *(Note: Active unexpired leases will be protected; only pass `-Force` if explicitly confirmed by the user).*
+  *(Note: Active unexpired leases are detected automatically and protected by default; only pass `-Force` if explicitly confirmed by the user).*
 - **Post-Write Snapshot (Agent-Invoked)**:
   The snapshot runner is not a background daemon — invoke it explicitly when you finish any write task that created or modified a formal knowledge card or record:
   ```powershell
