@@ -12,6 +12,10 @@
   <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="License">
 </p>
 
+<p align="center">
+  <img src="assets/banner.png" alt="Agent-Memory-OS Hero Banner" width="100%">
+</p>
+
 ---
 
 ## 🌟 为什么需要 Agent-Memory-OS？ (Why Agent-Memory-OS?)
@@ -30,7 +34,11 @@
 
 ---
 
-## 🏗️ 系统架构 (Architecture)
+## 🏗️ 核心工作流与系统架构 (Core Workflow & Architecture)
+
+<p align="center">
+  <img src="assets/workflow.png" alt="Agent-Memory-OS Core Workflow" width="100%">
+</p>
 
 ```mermaid
 graph TD
